@@ -1,9 +1,66 @@
+import "./App.css";
+import { useState, useEffect } from "react";
 
-import './App.css';
-import { useState } from "react";
+function isFull(board) {
+  return board.every((cell) => cell !== null);
+}
 
-function calculateWinner({currState}){
-  
+function calculateScore(currState) {
+  const winner = calculateWinner(currState);
+  if (winner !== null) {
+    return winner[0] === "O" ? 10 : -10;
+  }
+  return 0;
+}
+
+function findBestMove(board) {
+  let bestVal = -Infinity;
+  let bestMove = -1;
+
+  for (let i = 0; i < board.length; i++) {
+    if (board[i] === null) {
+      board[i] = "O";
+      let moveVal = minmax(board, 0, false);
+      board[i] = null;
+
+      if (moveVal > bestVal) {
+        bestVal = moveVal;
+        bestMove = i;
+      }
+    }
+  }
+  return bestMove;
+}
+
+function minmax(currState, depth, isMax) {
+  let score = calculateScore(currState);
+  if (score === 10 || score === -10) return score;
+  if (isFull(currState)) return 0;
+
+  if (isMax) {
+    let best = -Infinity;
+    for (let i = 0; i < currState.length; i++) {
+      if (currState[i] === null) {
+        currState[i] = "O";
+        best = Math.max(best, minmax(currState, depth + 1, false));
+        currState[i] = null;
+      }
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (let i = 0; i < currState.length; i++) {
+      if (currState[i] === null) {
+        currState[i] = "X";
+        best = Math.min(best, minmax(currState, depth + 1, true));
+        currState[i] = null;
+      }
+    }
+    return best;
+  }
+}
+
+function calculateWinner(currState) {
   const lines = [
     [0, 1, 2],
     [3, 4, 5],
@@ -14,151 +71,92 @@ function calculateWinner({currState}){
     [0, 4, 8],
     [2, 4, 6],
   ];
-  for (let i = 0; i < lines.length; i++) {
-    const [a, b, c] = lines[i];
+  for (let [a, b, c] of lines) {
     if (currState[a] && currState[a] === currState[b] && currState[a] === currState[c]) {
       return [currState[a], a, b, c];
     }
   }
   return null;
-  
 }
 
-
-function Square({value, onSquareclick, cellColor}){
-
+function Square({ value, onClick, cellColor }) {
   return (
-    <button className="square" onClick={onSquareclick} style={{backgroundColor: cellColor}} >{value}</button>
+    <button className="square" onClick={onClick} style={{ backgroundColor: cellColor }}>
+      {value}
+    </button>
   );
 }
 
-function Grid({history, setHistory, turn, setturn}){
+function Grid({ history, setHistory, turn, setTurn, isAI }) {
+  const currState = history[history.length - 1];
+  const winnerInfo = calculateWinner(currState);
+  let winner = null;
+  let colorArr = Array(9).fill("white");
 
-
-  
-  function handleClick(i){
-    const currState = history[history.length - 1]
-    
-    if (calculateWinner({ currState }) || currState[i]) {
-      return;
-    }
-    const tmparray = currState.slice();
-    
-    tmparray[i] = turn;
-    setHistory([...history, tmparray]);
-    setturn(turn === 'X' ? 'O' : 'X');
+  if (winnerInfo) {
+    [winner, colorArr[winnerInfo[1]], colorArr[winnerInfo[2]], colorArr[winnerInfo[3]]] = ["red", "red", "red", "red"];
   }
- 
 
-  const currState = history[history.length - 1]
-  //We calculate the winner outside handle click because the history is updated async so if we call calculate winner inside handle click it will always get the older copy of history
-  let win, ind1, ind2, ind3;
-  const colorArr = Array(9).fill('white');
-  if (calculateWinner({currState}) !== null){
-    [win, ind1, ind2, ind3] = calculateWinner({currState});
-    for (let index = 0; index < colorArr.length; index++) {
-      if (index === ind1 || index === ind2 || index === ind3){
-        colorArr[index] = 'red';
+  function handleClick(i) {
+    if (winner || currState[i]) return;
+
+    const newBoard = currState.slice();
+    newBoard[i] = turn;
+    setHistory([...history, newBoard]);
+    setTurn(turn === "X" ? "O" : "X");
+  }
+
+  // AI move
+  useEffect(() => {
+    if (isAI && turn === "O" && !winner) {
+      const aiMove = findBestMove(currState);
+      if (aiMove !== -1) {
+        handleClick(aiMove);
       }
     }
-  }
-  else{
-    win = null;
-  }
-  // const win = calculateWinner({currState});
-  
-  let stat;
-  if (win) {
-    stat = 'Winner: ' + win;
-  } else {
-    stat = 'Next player: ' + (turn);
-  }
+  }, [turn, isAI]);
 
-  //check for draw\
-  if (!win){
-  if (currState.every((element) =>{
-    if (element !== null){
-      return true
-    }
-    return false
-  })){
-    stat = 'Draw'
-  }
-  }
+  let status = winner ? `Winner: ${winner}` : `Next player: ${turn}`;
+  if (!winner && isFull(currState)) status = "Draw";
 
-  //return
   return (
     <>
-    <div className="status">{stat}</div>
-      
-    {/* <Square value={squares[0]} onSquareClick={handleClick(0)} /> */}
-    {/* Here is why this doesn’t work. The handleClick(0) call will be a part of rendering the board component. Because handleClick(0) alters the state of the board component by calling setSquares, your entire board component will be re-rendered again. But this runs handleClick(0) again, leading to an infinite loop: */}
-      
-    
-
-    <div className="row">
-      
-      <Square value={currState[0]} onSquareclick={() => { handleClick(0) }} cellColor = {colorArr[0]}/>
-      <Square value={currState[1]} onSquareclick={() => { handleClick(1) }} cellColor = {colorArr[1]}/>
-      <Square value={currState[2]} onSquareclick={() => { handleClick(2) }} cellColor = {colorArr[2]}/>
-
-    </div>
-    <div className="row">
-      <Square value={currState[3]} onSquareclick={() => { handleClick(3) }} cellColor = {colorArr[3]}/>
-      <Square value={currState[4]} onSquareclick={() => { handleClick(4) }} cellColor = {colorArr[4]}/>
-      <Square value={currState[5]} onSquareclick={() => { handleClick(5) }} cellColor = {colorArr[5]}/>
-    </div>
-    <div className="row">
-      <Square value={currState[6]} onSquareclick={() => { handleClick(6) }} cellColor = {colorArr[6]}/>
-      <Square value={currState[7]} onSquareclick={() => { handleClick(7) }} cellColor = {colorArr[7]}/>
-      <Square value={currState[8]} onSquareclick={() => { handleClick(8) }} cellColor = {colorArr[8]}/>
-    </div>
+      <div className="status">{status}</div>
+      <div className="board">
+        {currState.map((cell, i) => (
+          <Square key={i} value={cell} onClick={() => handleClick(i)} cellColor={colorArr[i]} />
+        ))}
+      </div>
     </>
   );
 }
 
-
-
 function App() {
   const [history, setHistory] = useState([Array(9).fill(null)]);
-  const [turn, setturn] = useState('X');
+  const [turn, setTurn] = useState("X");
+  const [isAI, setIsAI] = useState(false);
 
-  function jumpTo(move){
-   
-    setHistory(history.slice(0, move + 1))
-    if (move % 2 !== 0){
-      setturn('O');
-    }
-    else{
-      setturn('X');
-    }
+  function jumpTo(move) {
+    setHistory(history.slice(0, move + 1));
+    setTurn(move % 2 === 0 ? "X" : "O");
   }
-
-  const moves = history.map((squares, move) => {
-    let description;
-    if (move > 0) {
-      description = 'Go to move #' + move;
-    } else {
-      description = 'Go to game start';
-    }
-    return (
-      <li key={move}>
-        <button onClick={() => jumpTo(move)}>{description}</button>
-      </li>
-    );
-  });
-
 
   return (
     <>
+      <label>
+        <input type="checkbox" checked={isAI} onChange={(e) => setIsAI(e.target.checked)} /> AI?
+      </label>
       <h1>Current Player: {turn}</h1>
-      <div>
-      <Grid history={history} setHistory={setHistory} turn={turn} setturn={setturn} />
-      </div>
+      <Grid history={history} setHistory={setHistory} turn={turn} setTurn={setTurn} isAI={isAI} />
       <ul>
-        {moves}
+        {history.map((_, move) => (
+          <li key={move}>
+            <button onClick={() => jumpTo(move)}>
+              {move > 0 ? `Go to move #${move}` : "Go to game start"}
+            </button>
+          </li>
+        ))}
       </ul>
-
     </>
   );
 }
